@@ -1,0 +1,386 @@
+---
+title: "CTmax analysis"
+author: "Hannah von Hammerstein and Sonia Bejarano"
+output:
+  github_document:
+    toc: true
+    toc_depth: 2
+    html_preview: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  out.width = "85%"
+)
+
+set.seed(2026)
+dir.create(here::here("figures"), showWarnings = FALSE)
+dir.create(here::here("results"), showWarnings = FALSE)
+```
+
+# Overview
+
+This document reproduces the CTmax analyses from the cleaned dataset supplied
+with this repository. The primary inference uses the first experimental ramp
+and compares the three acclimation temperatures (28, 30, and 32 °C). The
+second ramp, available for the 28 and 32 °C treatments, is used to assess
+repeatability.
+
+# Packages and data
+
+```{r packages-and-data}
+library(dplyr)
+library(emmeans)
+library(ggplot2)
+library(readxl)
+
+data_path <- here::here("Data_CTmaxHist.xlsx")
+stopifnot(file.exists(data_path))
+
+ctmax_data <- read_excel(data_path, sheet = "CTmaxHistology")
+
+required_columns <- c(
+  "ramp_num", "Temp_Treat", "CTMax", "Histopathology", "C.Temp_Treat"
+)
+stopifnot(all(required_columns %in% names(ctmax_data)))
+
+temperature_levels <- c("a.ambient.28", "b.medium.30", "c.hot.32")
+
+ctmax_data <- ctmax_data %>%
+  mutate(
+    ramp_num = factor(ramp_num, levels = c("first", "second")),
+    C.Temp_Treat = as.numeric(C.Temp_Treat),
+    Temperature_C = factor(C.Temp_Treat, levels = c(28, 30, 32)),
+    Temp_Treat = factor(
+      case_when(
+        C.Temp_Treat == 28 ~ "a.ambient.28",
+        C.Temp_Treat == 30 ~ "b.medium.30",
+        C.Temp_Treat == 32 ~ "c.hot.32",
+        TRUE ~ NA_character_
+      ),
+      levels = temperature_levels
+    )
+  )
+
+dplyr::glimpse(ctmax_data)
+```
+
+# Primary analysis: Ramp 1
+
+```{r primary-model}
+ramp1_data <- ctmax_data %>%
+  filter(ramp_num == "first") %>%
+  droplevels()
+
+stopifnot(nlevels(droplevels(ramp1_data$Temperature_C)) == 3)
+ctmax_model <- lm(CTMax ~ Temperature_C, data = ramp1_data)
+
+summary(ctmax_model)
+anova(ctmax_model)
+```
+
+## Model checks
+
+The following diagnostic figures show residuals against fitted values,
+residual distributions by acclimation temperature, and the residual
+normal Q–Q plot. These are retained because they support the model checks
+reported in the manuscript.
+
+```{r model-diagnostic-figures, fig.width=10, fig.height=3.5, out.width='100%'}
+par(mfrow = c(1, 3))
+
+plot(
+  fitted(ctmax_model),
+  residuals(ctmax_model),
+  xlab = "Fitted values",
+  ylab = "Residuals",
+  pch = 16
+)
+abline(h = 0, lty = 2)
+
+boxplot(
+  residuals(ctmax_model) ~ ramp1_data$Temperature_C,
+  xlab = "Temperature treatment",
+  ylab = "Residuals"
+)
+
+qqnorm(residuals(ctmax_model), pch = 16)
+qqline(residuals(ctmax_model), col = "red")
+
+par(mfrow = c(1, 1))
+```
+
+```{r model-diagnostic-tests}
+car::leveneTest(CTMax ~ Temperature_C, data = ramp1_data)
+shapiro.test(residuals(ctmax_model))
+kruskal.test(CTMax ~ Temperature_C, data = ramp1_data)
+```
+
+## Treatment estimates
+
+```{r treatment-estimates}
+ctmax_counts <- ramp1_data %>%
+  group_by(Temperature_C, C.Temp_Treat) %>%
+  summarise(
+    n = n(),
+    observed_mean = mean(CTMax, na.rm = TRUE),
+    observed_sd = sd(CTMax, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ctmax_emmeans <- emmeans(ctmax_model, ~ Temperature_C)
+ctmax_emmeans_df <- as.data.frame(ctmax_emmeans) %>%
+  mutate(
+    C.Temp_Treat = c(28, 30, 32)
+  )
+
+ctmax_counts
+ctmax_emmeans_df
+```
+
+# Repeatability: Ramp 1 versus Ramp 2
+
+The second ramp contains observations from the 28 and 32 °C treatments. Welch
+two-sample t-tests compare CTmax between ramps separately within those two
+treatments.
+
+```{r ramp-comparisons}
+ramp_comparison_data <- ctmax_data %>%
+  filter(Temp_Treat %in% c("a.ambient.28", "c.hot.32")) %>%
+  droplevels()
+
+ramp_summary <- ramp_comparison_data %>%
+  group_by(C.Temp_Treat, ramp_num) %>%
+  summarise(
+    n = sum(!is.na(CTMax)),
+    mean_CTmax = mean(CTMax, na.rm = TRUE),
+    sd_CTmax = sd(CTMax, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ramp_tests <- lapply(
+  split(ramp_comparison_data, ramp_comparison_data$C.Temp_Treat),
+  function(x) t.test(CTMax ~ ramp_num, data = x, var.equal = FALSE)
+)
+
+ramp_summary
+ramp_tests
+```
+
+# Acclimation response ratio
+
+The acclimation response ratio (ARR) is the model-estimated change in CTmax
+divided by the corresponding change in acclimation temperature:
+
+\[
+ARR = \frac{\Delta CTmax}{\Delta T_{acclimation}}
+\]
+
+```{r arr-analysis}
+arr_contrasts <- contrast(
+  ctmax_emmeans,
+  method = list(
+    "30_vs_28" = c(-1, 1, 0),
+    "32_vs_28" = c(-1, 0, 1),
+    "32_vs_30" = c(0, -1, 1)
+  )
+)
+
+arr_results <- confint(arr_contrasts, adjust = "none") %>%
+  as.data.frame() %>%
+  mutate(
+    comparison = recode(
+      contrast,
+      "30_vs_28" = "30 C vs 28 C",
+      "32_vs_28" = "32 C vs 28 C",
+      "32_vs_30" = "32 C vs 30 C"
+    ),
+    delta_Tacc_C = recode(
+      contrast,
+      "30_vs_28" = 2,
+      "32_vs_28" = 4,
+      "32_vs_30" = 2
+    ),
+    delta_CTmax_C = estimate,
+    lower_delta_CTmax_C = lower.CL,
+    upper_delta_CTmax_C = upper.CL,
+    ARR = delta_CTmax_C / delta_Tacc_C,
+    ARR_lower_95_CI = lower_delta_CTmax_C / delta_Tacc_C,
+    ARR_upper_95_CI = upper_delta_CTmax_C / delta_Tacc_C
+  ) %>%
+  dplyr::select(
+    comparison,
+    delta_Tacc_C,
+    delta_CTmax_C,
+    lower_delta_CTmax_C,
+    upper_delta_CTmax_C,
+    ARR,
+    ARR_lower_95_CI,
+    ARR_upper_95_CI
+  ) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+arr_results
+
+write.csv(
+  arr_results,
+  here::here("results", "CTmax_ARR_results.csv"),
+  row.names = FALSE
+)
+```
+
+# Final CTmax figure
+
+This is the only CTmax figure printed in the rendered analysis. Circles and
+solid estimates represent Ramp 1; triangles and dashed estimates represent
+Ramp 2. Ramp 2 was conducted only at 28 and 32 °C.
+
+```{r final-ctmax-figure, fig.width=7, fig.height=5, fig.cap='CTmax by acclimation temperature and experimental ramp.'}
+ramp2_data <- ctmax_data %>%
+  filter(ramp_num == "second") %>%
+  droplevels()
+
+ramp2_model <- lm(CTMax ~ Temperature_C, data = ramp2_data)
+
+ramp2_emmeans_df <- emmeans(ramp2_model, ~ Temperature_C) %>%
+  as.data.frame() %>%
+  mutate(C.Temp_Treat = c(28, 32))
+
+temp_fill <- c(
+  "a.ambient.28" = "#ffe79a",
+  "b.medium.30" = "#f8c0bb",
+  "c.hot.32" = "#ee7063"
+)
+
+temp_colour <- c(
+  "a.ambient.28" = "#E6C600",
+  "b.medium.30" = "#E18E8B",
+  "c.hot.32" = "#C85B52"
+)
+
+p_ctmax_final <- ggplot() +
+  geom_violin(
+    data = filter(ctmax_data, ramp_num == "second"),
+    aes(C.Temp_Treat, CTMax, fill = Temp_Treat, colour = Temp_Treat),
+    trim = FALSE,
+    bw = 0.05,
+    alpha = 0.2,
+    scale = "width",
+    linetype = "dashed",
+    show.legend = FALSE
+  ) +
+  geom_jitter(
+    data = filter(ctmax_data, ramp_num == "second"),
+    aes(C.Temp_Treat, CTMax, fill = Temp_Treat),
+    shape = 24,
+    size = 4.5,
+    colour = "black",
+    width = 0.2
+  ) +
+  geom_violin(
+    data = filter(ctmax_data, ramp_num == "first"),
+    aes(C.Temp_Treat, CTMax, fill = Temp_Treat, colour = Temp_Treat),
+    trim = FALSE,
+    bw = 0.05,
+    alpha = 0.7,
+    scale = "width",
+    show.legend = FALSE
+  ) +
+  geom_jitter(
+    data = filter(ctmax_data, ramp_num == "first"),
+    aes(C.Temp_Treat, CTMax, fill = Temp_Treat),
+    shape = 21,
+    size = 4.5,
+    colour = "black",
+    alpha = 0.7,
+    width = 0.2
+  ) +
+  geom_errorbar(
+    data = ramp2_emmeans_df,
+    aes(C.Temp_Treat, ymin = lower.CL, ymax = upper.CL),
+    width = 0.30,
+    linewidth = 1.3,
+    linetype = "longdash",
+    colour = "grey40",
+    position = position_nudge(x = 0.06)
+  ) +
+  geom_point(
+    data = ramp2_emmeans_df,
+    aes(C.Temp_Treat, emmean),
+    shape = 24,
+    size = 6.8,
+    stroke = 1.15,
+    alpha = 0.9,
+    fill = "grey40",
+    colour = "grey40",
+    position = position_nudge(x = 0.06)
+  ) +
+  geom_errorbar(
+    data = ctmax_emmeans_df,
+    aes(C.Temp_Treat, ymin = lower.CL, ymax = upper.CL),
+    width = 0.30,
+    linewidth = 1.3,
+    colour = "grey20",
+    position = position_nudge(x = -0.06)
+  ) +
+  geom_point(
+    data = ctmax_emmeans_df,
+    aes(C.Temp_Treat, emmean),
+    shape = 21,
+    size = 7,
+    stroke = 1.15,
+    fill = "grey20",
+    colour = "grey20",
+    position = position_nudge(x = -0.06)
+  ) +
+  scale_x_continuous(breaks = c(28, 30, 32)) +
+  scale_fill_manual(values = temp_fill) +
+  scale_colour_manual(values = temp_colour) +
+  labs(
+    x = "Acclimation temperature (°C)",
+    y = "CTmax (°C)"
+  ) +
+  theme_bw(base_size = 20) +
+  theme(
+    panel.border = element_rect(linetype = "solid", fill = NA),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text = element_text(colour = "black", size = 18),
+    axis.ticks = element_line(linewidth = 1, colour = "black"),
+    axis.ticks.length = grid::unit(0.2, "cm"),
+    axis.title = element_text(face = "bold", size = 20),
+    plot.caption = element_text(size = 14, hjust = 0.5, face = "italic"),
+    legend.position = "none"
+  )
+
+p_ctmax_final
+
+ggsave(
+  here::here("figures", "CTmax_combined_ramps.pdf"),
+  p_ctmax_final,
+  width = 4.5,
+  height = 3.5,
+  units = "in",
+  scale = 2.5
+)
+
+ggsave(
+  here::here("figures", "CTmax_combined_ramps.png"),
+  p_ctmax_final,
+  width = 4.5,
+  height = 3.5,
+  units = "in",
+  scale = 2.5,
+  dpi = 600
+)
+```
+
+# Reproducibility information
+
+```{r session-information}
+sessionInfo()
+```
