@@ -8,6 +8,10 @@ Author list
 
 Abstract
 
+#### Analyses
+
+- [View the rendered CTmax analysis](CTmax_script.md)
+- [View the rendered histopathology analysis](Histopathology_script.md)
 
 #### License
 
