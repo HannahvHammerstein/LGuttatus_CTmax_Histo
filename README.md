@@ -6,6 +6,7 @@ DOI: {}
 
 ##### Hannah von Hammerstein <sup>a,b*</sup>, Carla Martins <sup>c,d</sup>, Carolina Madeira <sup>c,d</sup>, Nikol Avila-Cerdas <sup>e</sup>, Jakob Bornhaeuser <sup>a,c,d,f</sup>, Elman Calvo Elizondo <sup>e,g</sup>, Jonathan Chacon Guzman <sup>e,g</sup>, Pedro M. Costa <sup>c,d</sup>, Chiara De Falco <sup>h,i</sup>, Guillermo Diaz-Pulido <sup>j</sup>, Mario Diniz <sup>d,k</sup>, Tyrone Estmann <sup>a,l</sup>, Emmanuel Esquivel <sup>e</sup>, Priscilla Mooney <sup>h</sup>, Jose Gabriel Rodriguez-Trejos <sup>e</sup>, Stefanie Schwerdt <sup>a,m</sup>, Jerry Tjiputra <sup>h</sup>, Jessica Vince <sup>a</sup>, Fernando A. Zapata <sup>n</sup>, Sonia Bejarano <sup>a</sup>
 
+<small>
 <sup>a</sup> Leibniz Centre for Tropical Marine Research (ZMT), Fahrenheitstraße 6, 28359 Bremen, Germany<br>
 <sup>b</sup> Department of Geography and Environment, University of Hawaiʻi at Mānoa, Honolulu, HI, USA<br>
 <sup>c</sup> UCIBIO – Applied Molecular Biosciences Unit, Department of Life Sciences, NOVA School of Science and Technology, NOVA University Lisbon, 2819-516 Caparica, Portugal<br>
@@ -22,6 +23,7 @@ DOI: {}
 <sup>n</sup> Departamento de Biología, Universidad del Valle, Cali, Valle del Cauca, Colombia
 
 <sup>*</sup> Corresponding author
+</small>
 
 <p align="center">
   <img src="figures/GraphicAbstract.png"
