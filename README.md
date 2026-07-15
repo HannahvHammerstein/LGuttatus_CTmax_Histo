@@ -6,6 +6,12 @@ DOI: {}
 
 Author list
 
+<p align="center">
+  <img src="figures/GraphicAbstract.png"
+       alt="Graphical abstract summarizing the study"
+       width="850">
+</p>
+
 Abstract
 
 #### Analyses
