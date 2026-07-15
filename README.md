@@ -7,3 +7,16 @@ DOI: {}
 Author list
 
 Abstract
+
+
+#### License
+
+The datasets contained in the `data/` directory are made available
+under the Creative Commons CC0 1.0 Universal dedication. See
+`LICENSE-DATA`.
+
+The analysis scripts and other source code contained in the `scripts/`
+directory are licensed under the MIT License. See `LICENSE-CODE`.
+
+Unless otherwise stated, documentation and metadata are provided under
+CC0 1.0 Universal.
