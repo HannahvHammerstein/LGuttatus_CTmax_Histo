@@ -22,6 +22,7 @@ DOI: {}
 <sub><sup>n</sup> Departamento de Biología, Universidad del Valle, Cali, Valle del Cauca, Colombia</sub><br>
 <sub><sup>*</sup> Corresponding author</sub>
 
+
 <p align="center">
   <img src="figures/GraphicAbstract.png"
        alt="Graphical abstract summarizing the study"
